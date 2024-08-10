@@ -1,0 +1,31 @@
+-module(message_websocket_handler).
+-behaviour(cowboy_websocket).
+
+-export([init/2, websocket_init/1, websocket_handle/2, websocket_info/2, terminate/3]).
+
+-record(state, {clients}).
+
+init(Req, _State) ->
+    {cowboy_websocket, Req, #state{clients = []}}.
+
+websocket_init(State) ->
+    {ok, State#state{clients = [self()]}}.
+
+websocket_handle({text, Msg}, #state{clients = Clients} = State) ->
+    io:format("Received message: ~s~n", [Msg]),
+    lists:foreach(fun(Client) -> Client ! {broadcast, Msg} end, Clients),
+    {ok, State}.
+
+websocket_handle(_Other, State) ->
+    {ok, State}.
+
+websocket_info({broadcast, Msg}, State) ->
+    io:format("Broadcasting message: ~s~n", [Msg]),
+    {reply, {text, Msg}, State}.
+
+websocket_info(_Info, State) ->
+    {ok, State}.
+
+terminate(_Reason, _Req, #state{clients = Clients} = State) ->
+    UpdatedClients = lists:delete(self(), Clients),
+    {ok, State#state{clients = UpdatedClients}}.
